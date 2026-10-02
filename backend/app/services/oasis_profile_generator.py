@@ -476,6 +476,7 @@ class OasisProfileGenerator:
                     response_format={"type": "json_object"},
                     temperature=0.7 - (attempt * 0.1),  # 每次重试降低温度
                     max_tokens=4096,
+                    timeout=25.0,
                 )
                 
                 content = extract_chat_completion_text(response)
@@ -756,7 +757,7 @@ class OasisProfileGenerator:
         use_llm: bool = True,
         progress_callback: Optional[callable] = None,
         graph_id: Optional[str] = None,
-        parallel_count: int = 3,
+        parallel_count: int = 2,
         realtime_output_path: Optional[str] = None,
         output_platform: str = "reddit"
     ) -> List[OasisAgentProfile]:
