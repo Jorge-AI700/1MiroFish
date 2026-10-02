@@ -586,7 +586,7 @@ class OasisProfileGenerator:
                     ],
                     response_format={"type": "json_object"},
                     temperature=0.7 - (attempt * 0.1),  # 每次重试降低温度
-                    max_tokens=600,
+                    max_tokens=2048,
                 )
                 
                 content = extract_chat_completion_text(response)
