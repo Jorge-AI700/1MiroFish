@@ -257,7 +257,8 @@ class OasisProfileGenerator:
         
         self.client = OpenAI(
             api_key=self.api_key,
-            base_url=self.base_url
+            base_url=self.base_url,
+            timeout=40.0
         )
         
         # Zep客户端用于检索丰富上下文
@@ -412,12 +413,18 @@ class OasisProfileGenerator:
                 edge_future = executor.submit(search_edges)
                 node_future = executor.submit(search_nodes)
                 
-                # 获取结果
-                # Each request already has the configured HTTP timeout and
-                # typed retry budget. A second hard-coded 30s future timeout
-                # discarded late successes while the executor still waited.
-                edge_result = edge_future.result()
-                node_result = node_future.result()
+                # 获取结果（设置10秒超时防止挂死）
+                try:
+                    edge_result = edge_future.result(timeout=10.0)
+                except Exception as ex:
+                    logger.warning(f"Zep edge search timed out for {entity_name}: {ex}")
+                    edge_result = None
+
+                try:
+                    node_result = node_future.result(timeout=10.0)
+                except Exception as ex:
+                    logger.warning(f"Zep node search timed out for {entity_name}: {ex}")
+                    node_result = None
             
             # 处理边搜索结果
             all_facts = set()
@@ -898,7 +905,7 @@ class OasisProfileGenerator:
         use_llm: bool = True,
         progress_callback: Optional[callable] = None,
         graph_id: Optional[str] = None,
-        parallel_count: int = 5,
+        parallel_count: int = 3,
         realtime_output_path: Optional[str] = None,
         output_platform: str = "reddit"
     ) -> List[OasisAgentProfile]:
