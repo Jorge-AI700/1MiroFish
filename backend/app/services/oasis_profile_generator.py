@@ -357,25 +357,8 @@ class OasisProfileGenerator:
             entity: 实体节点对象
             
         Returns:
-            包含facts, node_summaries, context的字典
-        """
-        import concurrent.futures
-        
-        if not self.zep_client:
-            return {"facts": [], "node_summaries": [], "context": ""}
-        
-        entity_name = entity.name
-        
-        results = {
-            "facts": [],
-            "node_summaries": [],
-            "context": ""
-        }
-        
-        # 必须有graph_id才能进行搜索
-        if not self.graph_id:
-            logger.debug(f"跳过Zep检索：未设置graph_id")
-            return results
+        # 跳过耗时的Zep网络检索，实体已在内存中包含属性和关系上下文，避免嵌套线程池死锁
+        return {"facts": [], "node_summaries": [], "context": ""}
         
         comprehensive_query = normalize_zep_search_query(
             t('progress.zepSearchQuery', name=entity_name)
@@ -751,7 +734,7 @@ class OasisProfileGenerator:
 请生成JSON，包含以下字段:
 
 1. bio: 社交媒体简介，200字
-2. persona: 详细人设描述（2000字的纯文本），需包含:
+2. persona: 详细人设描述（400-600字），需包含:
    - 基本信息（年龄、职业、教育背景、所在地）
    - 人物背景（重要经历、与事件的关联、社会关系）
    - 性格特征（MBTI类型、核心性格、情绪表达方式）
@@ -800,7 +783,7 @@ class OasisProfileGenerator:
 请生成JSON，包含以下字段:
 
 1. bio: 官方账号简介，200字，专业得体
-2. persona: 详细账号设定描述（2000字的纯文本），需包含:
+2. persona: 详细账号设定描述（400-600字），需包含:
    - 机构基本信息（正式名称、机构性质、成立背景、主要职能）
    - 账号定位（账号类型、目标受众、核心功能）
    - 发言风格（语言特点、常用表达、禁忌话题）
