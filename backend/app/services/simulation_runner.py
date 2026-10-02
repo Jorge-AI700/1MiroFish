@@ -518,6 +518,7 @@ class SimulationRunner:
                 sys.executable,  # Python解释器
                 script_path,
                 "--config", config_path,  # 使用完整配置文件路径
+                "--no-wait",  # 模拟完成后自动退出，避免保持无限等待
             ]
             
             # 如果指定了最大轮数，添加到命令行参数
@@ -533,6 +534,12 @@ class SimulationRunner:
             env = os.environ.copy()
             env['PYTHONUTF8'] = '1'  # Python 3.7+ 支持，让所有 open() 默认使用 UTF-8
             env['PYTHONIOENCODING'] = 'utf-8'  # 确保 stdout/stderr 使用 UTF-8
+            # 限制 OpenMP / MKL / BLAS 线程数，防止本地 BERT 模型耗尽全部 16 核心导致笔记本严重过热
+            env['OMP_NUM_THREADS'] = os.environ.get('OMP_NUM_THREADS', '4')
+            env['MKL_NUM_THREADS'] = os.environ.get('MKL_NUM_THREADS', '4')
+            env['OPENBLAS_NUM_THREADS'] = os.environ.get('OPENBLAS_NUM_THREADS', '4')
+            env['VECLIB_MAXIMUM_THREADS'] = os.environ.get('VECLIB_MAXIMUM_THREADS', '4')
+            env['NUMEXPR_NUM_THREADS'] = os.environ.get('NUMEXPR_NUM_THREADS', '4')
             
             # 设置工作目录为模拟目录（数据库等文件会生成在此）
             # 使用 start_new_session=True 创建新的进程组，确保可以通过 os.killpg 终止所有子进程
