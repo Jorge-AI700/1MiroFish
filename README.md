@@ -15,6 +15,7 @@
 [![GitHub Forks](https://img.shields.io/github/forks/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/network)
 [![Docker](https://img.shields.io/badge/Docker-Build-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/MiroFish)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Jorge-AI700/1MiroFish/blob/main/colab_launch.ipynb)
 
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white)](http://discord.gg/ePf5aPaHnA)
 [![X](https://img.shields.io/badge/X-Follow-000000?style=flat-square&logo=x&logoColor=white)](https://x.com/mirofish_ai)
@@ -93,7 +94,20 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 
 ## 🚀 Quick Start
 
-### Option 1: Source Code Deployment (Recommended)
+### Option 0: Google Colab (100% Free & Zero Setup)
+
+Launch directly on Google Colab with 1-click:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Jorge-AI700/1MiroFish/blob/main/colab_launch.ipynb)
+
+1. Open the notebook above.
+2. In Colab's left sidebar, click the **Secrets** icon (🔑) and add:
+   - `LLM_API_KEY`: Your LLM key (e.g. OpenRouter or Alibaba Bailian)
+   - `ZEP_API_KEY`: Your Zep Cloud key
+   - *(Optional)* `LLM_BASE_URL` & `LLM_MODEL_NAME`
+3. Run the cells — a public Cloudflare Tunnel link will be generated for the Web UI.
+
+### Option 1: Source Code Deployment
 
 #### Prerequisites
 
