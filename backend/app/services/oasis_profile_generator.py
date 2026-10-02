@@ -475,16 +475,15 @@ class OasisProfileGenerator:
                     ],
                     response_format={"type": "json_object"},
                     temperature=0.7 - (attempt * 0.1),  # 每次重试降低温度
-                    max_tokens=2048,
+                    max_tokens=4096,
                 )
                 
                 content = extract_chat_completion_text(response)
                 
                 # 检查是否被截断（finish_reason不是'stop'）
-                finish_reason = response.choices[0].finish_reason
+                finish_reason = getattr(response.choices[0], 'finish_reason', None)
                 if finish_reason == 'length':
-                    logger.warning(f"LLM输出被截断 (attempt {attempt+1}), 尝试修复...")
-                    content = self._fix_truncated_json(content)
+                    logger.warning(f"LLM输出被截断 (attempt {attempt+1}), 尝试安全修复解析...")
                 
                 # 尝试解析JSON
                 try:
@@ -501,7 +500,7 @@ class OasisProfileGenerator:
                 except json.JSONDecodeError as je:
                     logger.warning(f"JSON解析失败 (attempt {attempt+1}): {str(je)[:80]}")
                     
-                    # 尝试修复JSON
+                    # 尝试快速安全修复JSON
                     result = self._try_fix_json(content, entity_name, entity_type, entity_summary)
                     if result.get("_fixed"):
                         del result["_fixed"]
@@ -520,93 +519,56 @@ class OasisProfileGenerator:
             entity_name, entity_type, entity_summary, entity_attributes
         )
     
-    def _fix_truncated_json(self, content: str) -> str:
-        """修复被截断的JSON（输出被max_tokens限制截断）"""
-        import re
-        
-        # 如果JSON被截断，尝试闭合它
-        content = content.strip()
-        
-        # 计算未闭合的括号
-        open_braces = content.count('{') - content.count('}')
-        open_brackets = content.count('[') - content.count(']')
-        
-        # 检查是否有未闭合的字符串
-        # 简单检查：如果最后一个引号后没有逗号或闭合括号，可能是字符串被截断
-        if content and content[-1] not in '",}]':
-            # 尝试闭合字符串
-            content += '"'
-        
-        # 闭合括号
-        content += ']' * open_brackets
-        content += '}' * open_braces
-        
-        return content
-    
     def _try_fix_json(self, content: str, entity_name: str, entity_type: str, entity_summary: str = "") -> Dict[str, Any]:
-        """尝试修复损坏的JSON"""
-        import re
-        
-        # 1. 首先尝试修复被截断的情况
-        content = self._fix_truncated_json(content)
-        
-        # 2. 尝试提取JSON部分
-        json_match = re.search(r'\{[\s\S]*\}', content)
-        if json_match:
-            json_str = json_match.group()
-            
-            # 3. 处理字符串中的换行符问题
-            # 找到所有字符串值并替换其中的换行符
-            def fix_string_newlines(match):
-                s = match.group(0)
-                # 替换字符串内的实际换行符为空格
-                s = s.replace('\n', ' ').replace('\r', ' ')
-                # 替换多余空格
-                s = re.sub(r'\s+', ' ', s)
-                return s
-            
-            # 匹配JSON字符串值
-            json_str = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', fix_string_newlines, json_str)
-            
-            # 4. 尝试解析
-            try:
-                result = json.loads(json_str)
-                result["_fixed"] = True
-                return result
-            except json.JSONDecodeError as e:
-                # 5. 如果还是失败，尝试更激进的修复
-                try:
-                    # 移除所有控制字符
-                    json_str = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', json_str)
-                    # 替换所有连续空白
-                    json_str = re.sub(r'\s+', ' ', json_str)
-                    result = json.loads(json_str)
-                    result["_fixed"] = True
-                    return result
-                except:
-                    pass
-        
-        # 6. 尝试从内容中提取部分信息
-        bio_match = re.search(r'"bio"\s*:\s*"([^"]*)"', content)
-        persona_match = re.search(r'"persona"\s*:\s*"([^"]*)', content)  # 可能被截断
-        
-        bio = bio_match.group(1) if bio_match else (entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}")
-        persona = persona_match.group(1) if persona_match else (entity_summary or f"{entity_name}是一个{entity_type}。")
-        
-        # 如果提取到了有意义的内容，标记为已修复
-        if bio_match or persona_match:
-            logger.info(f"从损坏的JSON中提取了部分信息")
+        """安全且极速地解析或修复损坏的JSON，绝不发生正则灾难性回溯"""
+        if not content:
             return {
-                "bio": bio,
-                "persona": persona,
-                "_fixed": True
+                "bio": entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}",
+                "persona": entity_summary or f"{entity_name}是一个{entity_type}。"
             }
         
-        # 7. 完全失败，返回基础结构
-        logger.warning(f"JSON修复失败，返回基础结构")
+        content = content.strip()
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?\s*", "", content, flags=re.IGNORECASE)
+        if content.endswith("```"):
+            content = re.sub(r"\s*```$", "", content)
+        content = content.strip()
+        
+        # 1. 尝试截取最外层大括号
+        s = content.find('{')
+        e = content.rfind('}')
+        if s != -1 and e > s:
+            try:
+                res = json.loads(content[s:e+1])
+                res["_fixed"] = True
+                return res
+            except Exception:
+                pass
+        
+        # 2. 如果被截断，快速补全括号闭合
+        if s != -1:
+            snippet = content[s:]
+            if snippet.count('"') % 2 != 0:
+                snippet += '"'
+            snippet += ']' * max(0, snippet.count('[') - snippet.count(']'))
+            snippet += '}' * max(0, snippet.count('{') - snippet.count('}'))
+            try:
+                res = json.loads(snippet)
+                res["_fixed"] = True
+                return res
+            except Exception:
+                pass
+        
+        # 3. 快速简单正则提取字段（避免嵌套回溯）
+        bio_m = re.search(r'"bio"\s*:\s*"([^"]+)"', content)
+        persona_m = re.search(r'"persona"\s*:\s*"([^"]+)"', content)
+        bio = bio_m.group(1) if bio_m else (entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}")
+        persona = persona_m.group(1) if persona_m else (entity_summary or f"{entity_name}是一个{entity_type}。")
+        
         return {
-            "bio": entity_summary[:200] if entity_summary else f"{entity_type}: {entity_name}",
-            "persona": entity_summary or f"{entity_name}是一个{entity_type}。"
+            "bio": bio,
+            "persona": persona,
+            "_fixed": True
         }
     
     def _get_system_prompt(self, is_individual: bool) -> str:
